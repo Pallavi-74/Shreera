@@ -1,7 +1,7 @@
 // import React, { useState } from 'react';
 // import { useApp } from '../context/AppContext';
 // import { Header } from '../components/common/Header';
-// import { Footer } from '../components/common/Footer';
+// // import { Footer } from '../components/common/Footer';
 // import { ImageTag } from '../components/common/ImageTag';
 // import { FABRIC_LIST } from '../data/mockData';
 // import {
@@ -18,6 +18,7 @@
 //   ShieldCheck,
 //   ChevronRight,
 //   Filter,
+//   CheckCircle2,
 // } from 'lucide-react';
 // import { Product } from '../types';
 
@@ -41,6 +42,17 @@
 //     'Under ₹5000',
 //   ]);
 //   const [sortOption, setSortOption] = useState<'Popular' | 'PriceLow' | 'PriceHigh'>('Popular');
+
+//   // State to track which product IDs are currently showing "Added to Cart"
+//   const [addedProductIds, setAddedProductIds] = useState<{ [key: string]: boolean }>({});
+
+//   const handleAddToCartWithTimeout = (prod: Product) => {
+//     addToCart(prod);
+//     setAddedProductIds((prev) => ({ ...prev, [prod.id]: true }));
+//     setTimeout(() => {
+//       setAddedProductIds((prev) => ({ ...prev, [prod.id]: false }));
+//     }, 3000);
+//   };
 
 //   const removeFilter = (tag: string) => {
 //     setActiveFilters((prev) => prev.filter((f) => f !== tag));
@@ -254,10 +266,11 @@
 //             </div>
 //           )}
 
-//           {/* Responsive Product Grid: 2 on mobile, 3 on tablet, 4 on desktop */}
+//           {/* Responsive Product Grid */}
 //           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4 sm:gap-6 pt-2">
 //             {displayProducts.map((prod) => {
 //               const inWish = isInWishlist(prod.id);
+//               const isAdded = addedProductIds[prod.id];
 //               return (
 //                 <div
 //                   key={prod.id}
@@ -325,11 +338,24 @@
 //                     </div>
 
 //                     <button
-//                       onClick={() => addToCart(prod)}
-//                       className="mt-3 w-full py-2 bg-white border border-slate-300 hover:border-blue-600 hover:bg-blue-50 text-slate-800 hover:text-blue-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+//                       onClick={() => handleAddToCartWithTimeout(prod)}
+//                       className={`mt-3 w-full py-2 border text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+//                         isAdded
+//                           ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+//                           : 'bg-white border-slate-300 hover:border-blue-600 hover:bg-blue-50 text-slate-800 hover:text-blue-700'
+//                       }`}
 //                     >
-//                       <Plus className="w-3.5 h-3.5" />
-//                       <span>Add to Cart</span>
+//                       {isAdded ? (
+//                         <>
+//                           <CheckCircle2 className="w-3.5 h-3.5" />
+//                           <span>Added to Cart</span>
+//                         </>
+//                       ) : (
+//                         <>
+//                           <Plus className="w-3.5 h-3.5" />
+//                           <span>Add to Cart</span>
+//                         </>
+//                       )}
 //                     </button>
 //                   </div>
 //                 </div>
@@ -338,8 +364,6 @@
 //           </div>
 //         </div>
 //       </div>
-
-//       {/* <Footer /> */}
 //     </div>
 //   );
 // };
@@ -347,13 +371,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Header } from '../components/common/Header';
-import { Footer } from '../components/common/Footer';
 import { ImageTag } from '../components/common/ImageTag';
-import { FABRIC_LIST } from '../data/mockData';
 import {
   SlidersHorizontal,
   ArrowUpDown,
-  LayoutGrid,
   X,
   Heart,
   Star,
@@ -363,15 +384,22 @@ import {
   Truck,
   ShieldCheck,
   ChevronRight,
-  Filter,
   CheckCircle2,
 } from 'lucide-react';
 import { Product } from '../types';
 
+// Local fabric list configuration
+const FABRIC_LIST = [
+  { id: 'soft-silk', name: 'Soft Silk', image: '/src/images/shreera-hero.png' },
+  { id: 'kanjivaram', name: 'Kanjivaram', image: '/src/images/shreera-hero.png' },
+  { id: 'organza', name: 'Organza', image: '/src/images/shreera-hero.png' },
+  { id: 'chiffon', name: 'Chiffon', image: '/src/images/shreera-hero.png' },
+  { id: 'banarasi', name: 'Banarasi', image: '/src/images/shreera-hero.png' },
+];
+
 export const CollectionScreen: React.FC = () => {
   const {
     products,
-    selectedCategory,
     selectedFabric,
     setSelectedFabric,
     navigateTo,
@@ -457,7 +485,7 @@ export const CollectionScreen: React.FC = () => {
 
             <div className="w-32 h-36 sm:w-48 sm:h-52 rounded-2xl overflow-hidden bg-white shadow-md border-2 border-white shrink-0">
               <ImageTag
-                src="/images/categories/soft-silk-banner-model.jpg"
+                src="/src/images/shreera-hero.png"
                 alt="Soft Silk Sarees"
                 fallbackText="Soft Silk Model"
                 className="w-full h-full object-cover"
@@ -666,12 +694,16 @@ export const CollectionScreen: React.FC = () => {
                         <span className="text-sm sm:text-base font-extrabold text-slate-900 tabular-nums">
                           ₹{prod.price.toLocaleString('en-IN')}
                         </span>
-                        <span className="text-xs text-slate-400 line-through tabular-nums">
-                          ₹{prod.originalPrice.toLocaleString('en-IN')}
-                        </span>
-                        <span className="text-xs font-bold text-rose-600">
-                          {prod.discountPercentage}% OFF
-                        </span>
+                        {prod.originalPrice > prod.price && (
+                          <span className="text-xs text-slate-400 line-through tabular-nums">
+                            ₹{prod.originalPrice.toLocaleString('en-IN')}
+                          </span>
+                        )}
+                        {prod.discountPercentage > 0 && (
+                          <span className="text-xs font-bold text-rose-600">
+                            {prod.discountPercentage}% OFF
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1 mt-1 text-amber-500">
                         {[...Array(5)].map((_, i) => (

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Header } from '../components/common/Header';
-import { Footer } from '../components/common/Footer';
+// import { Footer } from '../components/common/Footer';
 import { ImageTag } from '../components/common/ImageTag';
 import { SizeGuideModal } from '../components/modals/SizeGuideModal';
 import { CheckoutModal } from '../components/modals/CheckoutModal';

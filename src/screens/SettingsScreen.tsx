@@ -1,25 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Header } from '../components/common/Header';
-import { Footer } from '../components/common/Footer';
-import {
-  User,
-  MapPin,
-  CreditCard,
-  Lock,
-  ShieldCheck,
-  Bell,
-  Moon,
-  Globe,
-  Coins,
-  HelpCircle,
-  PhoneCall,
-  FileText,
-  Info,
-  LogOut,
-  ChevronRight,
-  Check,
-} from 'lucide-react';
+// import { Footer } from '../components/common/Footer';
+import { User, MapPin, CreditCard, Lock, ShieldCheck,
+  Bell, Moon, Globe, Coins, HelpCircle, PhoneCall,
+  FileText, Info, LogOut, ChevronRight, Check, } from 'lucide-react';
 
 export const SettingsScreen: React.FC = () => {
   const {

@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
-import { collection, doc, onSnapshot, query, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, setDoc, addDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db, adminEmails, firebaseConfigured } from '../firebase';
-import { ScreenType, Product, CartItem, Order, NotificationItem, UserAddress, UserProfile, } from '../types';
-import { INITIAL_ORDERS, INITIAL_NOTIFICATIONS, INITIAL_ADDRESSES, INITIAL_USER, RECENT_SEARCHES_DEFAULT, } from '../data/mockData';
+import { ScreenType, Product, CartItem, Order, NotificationItem, UserAddress, UserProfile } from '../types';
 
 interface AppContextType {
   authUser: User | null;
@@ -56,8 +55,8 @@ interface AppContextType {
   // Orders
   orders: Order[];
   getOrderById: (id: string) => Order | undefined;
-  placeOrder: (paymentMethod: string, address: UserAddress) => Order;
-  cancelOrder: (orderId: string) => void;
+  placeOrder: (paymentMethod: string, address: UserAddress) => Promise<Order | undefined>;
+  cancelOrder: (orderId: string) => Promise<void>;
 
   // Notifications
   notifications: NotificationItem[];
@@ -69,8 +68,8 @@ interface AppContextType {
   userProfile: UserProfile;
   updateUserProfile: (profile: Partial<UserProfile>) => void;
   addresses: UserAddress[];
-  addAddress: (addr: Omit<UserAddress, 'id'>) => void;
-  setDefaultAddress: (id: string) => void;
+  addAddress: (addr: Omit<UserAddress, 'id'>) => Promise<void>;
+  setDefaultAddress: (id: string) => Promise<void>;
 
   // Search
   searchQuery: string;
@@ -110,22 +109,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(!firebaseConfigured);
   const isAdmin = Boolean(authUser?.email && adminEmails.includes(authUser.email.toLowerCase()));
-  const [cartCloudReady, setCartCloudReady] = useState(false);
+  const [cloudSyncReady, setCloudSyncReady] = useState(false);
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
   const [screenHistory, setScreenHistory] = useState<ScreenType[]>(['home']);
 
-  const [selectedProductId, setSelectedProductId] = useState<string>('prod-1');
-  const [selectedOrderId, setSelectedOrderId] = useState<string>('ord-1');
+  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [selectedOrderId, setSelectedOrderId] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All Sarees');
   const [selectedFabric, setSelectedFabric] = useState<string>('Soft Silk');
 
   const [products, setProducts] = useState<Product[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [wishlist, setWishlist] = useState<Product[]>([]);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
-  const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER);
-  const [addresses, setAddresses] = useState<UserAddress[]>(INITIAL_ADDRESSES);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile>({
+    name: '',
+    email: '',
+    phone: '',
+    avatar: '',
+    wishlistCount: 0,
+    ordersCount: 0,
+    addressesCount: 0,
+  });
+  const [addresses, setAddresses] = useState<UserAddress[]>([]);
 
   const [appliedCoupon, setAppliedCoupon] = useState<{
     code: string;
@@ -133,8 +140,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     discountAmount: number;
   } | null>(null);
 
-  const [searchQuery, setSearchQuery] = useState<string>('saree');
-  const [recentSearches, setRecentSearches] = useState<string[]>(RECENT_SEARCHES_DEFAULT);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
   const [isSideMenuOpen, setIsSideMenuOpen] = useState<boolean>(false);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState<boolean>(false);
@@ -148,15 +155,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
+  // 1. Auth State Listener
   useEffect(() => {
     if (!auth) return;
     return onAuthStateChanged(auth, (user) => { 
       setAuthUser(user); 
       setAuthReady(true); 
-      setCartCloudReady(false); 
+      setCloudSyncReady(false); 
+      if (!user) {
+        setCartItems([]);
+        setWishlist([]);
+        setOrders([]);
+        setAddresses([]);
+        setNotifications([]);
+      }
     });
   }, []);
   
+  // 2. Real-time Products Listener from Firestore
   useEffect(() => {
     if (!db) {
       setProducts([]);
@@ -168,7 +184,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (snapshot) => {
         const liveProducts: Product[] = snapshot.docs.map((d) => {
           const raw = d.data() as Partial<Product>;
-
           return {
             id: d.id,
             name: raw.name ?? 'Untitled Product',
@@ -192,47 +207,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             highlights: raw.highlights ?? [],
           };
         });
-
         setProducts(liveProducts);
       },
       (error) => {
-        console.error('Firestore products listener:', error);
+        console.error('Firestore products listener error:', error);
       }
     );
 
     return unsubscribe;
   }, []);
 
-  // Sync user profile data, cart items, and wishlist from Firestore on login or page refresh
+  // 3. User Document Sync (Cart, Wishlist, Profile, Addresses, Notifications, Recent Searches)
   useEffect(() => {
     if (!db || !authUser) { 
-      setCartCloudReady(false); 
+      setCloudSyncReady(false); 
       return; 
     }
     const userRef = doc(db, 'users', authUser.uid);
-    return onSnapshot(userRef, (snapshot) => {
-      const data = snapshot.data();
-      setCartItems(data?.cartItems && Array.isArray(data.cartItems) ? data.cartItems as CartItem[] : []);
-      if (data?.wishlistIds && Array.isArray(data.wishlistIds)) {
-        setWishlist(products.filter((p) => (data.wishlistIds as string[]).includes(p.id)));
-      } else {
-        setWishlist([]);
+    return onSnapshot(
+      userRef, 
+      (snapshot) => {
+        const data = snapshot.data();
+        setCartItems(data?.cartItems && Array.isArray(data.cartItems) ? (data.cartItems as CartItem[]) : []);
+        
+        if (data?.wishlistIds && Array.isArray(data.wishlistIds)) {
+          setWishlist(products.filter((p) => (data.wishlistIds as string[]).includes(p.id)));
+        } else {
+          setWishlist([]);
+        }
+
+        setAddresses(data?.addresses && Array.isArray(data.addresses) ? (data.addresses as UserAddress[]) : []);
+        setNotifications(data?.notifications && Array.isArray(data.notifications) ? (data.notifications as NotificationItem[]) : []);
+        setRecentSearches(data?.recentSearches && Array.isArray(data.recentSearches) ? (data.recentSearches as string[]) : []);
+
+        setUserProfile((prev) => ({ 
+          ...prev, 
+          name: data?.name || authUser.displayName || prev.name, 
+          email: authUser.email || prev.email,
+          phone: data?.phone || prev.phone,
+          avatar: data?.avatar || authUser.photoURL || prev.avatar,
+        }));
+        setCloudSyncReady(true);
+      }, 
+      (error) => { 
+        console.error('User data listener error:', error); 
+        setCloudSyncReady(true); 
       }
-      setUserProfile((prev) => ({ 
-        ...prev, 
-        name: data?.name || authUser.displayName || prev.name, 
-        email: authUser.email || prev.email 
-      }));
-      setCartCloudReady(true);
-    }, (error) => { 
-      console.error('User data listener:', error); 
-      setCartCloudReady(true); 
-    });
+    );
   }, [authUser?.uid, products]);
 
-  // Debounced cloud sync to automatically store cart and wishlist changes to Firestore
+  // 4. Debounced Cloud Sync for Cart and Wishlist Changes
   useEffect(() => {
-    if (!db || !authUser || !cartCloudReady) return;
+    if (!db || !authUser || !cloudSyncReady) return;
     const userRef = doc(db, 'users', authUser.uid);
     const handler = setTimeout(() => {
       void setDoc(userRef, { 
@@ -242,17 +268,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         wishlistIds: wishlist.map((p) => p.id), 
         updatedAt: serverTimestamp() 
       }, { merge: true })
-        .catch((error) => console.error('Could not save user cart/wishlist:', error));
+        .catch((error) => console.error('Could not save cart/wishlist to Firestore:', error));
     }, 1000);
 
     return () => clearTimeout(handler);
-  }, [authUser?.uid, cartCloudReady, cartItems, wishlist, authUser?.displayName, userProfile.name, authUser?.email]);
+  }, [authUser?.uid, cloudSyncReady, cartItems, wishlist, authUser?.displayName, userProfile.name, authUser?.email]);
 
+  // 5. Orders Subcollection Listener from Firestore
   useEffect(() => {
-    if (!authUser?.uid) return;
-    const q = query(collection(db, 'users', authUser.uid, 'orders'));
+    if (!db || !authUser?.uid) {
+      setOrders([]);
+      return;
+    }
+    const ordersQuery = query(collection(db, 'users', authUser.uid, 'orders'));
     const unsubscribe = onSnapshot(
-      q, 
+      ordersQuery, 
       (snapshot) => {
         const fetchedOrders = snapshot.docs.map((d) => ({
           ...d.data(),
@@ -267,13 +297,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => unsubscribe();
   }, [authUser?.uid]);
+
   const signOutUser = async () => { 
     if (auth) await signOut(auth); 
-    setCartCloudReady(false); 
-    setCartItems([]);    // Clears local cart items on sign out
-    setWishlist([]);     // Clears local wishlist items on sign out
-    setAppliedCoupon(null); // Clears any applied discount coupons
-    navigateTo('home');  // Redirects user to home page upon logout
+    setCloudSyncReady(false); 
+    setCartItems([]); 
+    setWishlist([]); 
+    setOrders([]);
+    setAddresses([]);
+    setNotifications([]);
+    setAppliedCoupon(null); 
+    navigateTo('home'); 
   };
 
   const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
@@ -430,7 +464,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('Coupon removed', 'info');
   };
 
-  const placeOrder = (paymentMethod: string, address: UserAddress): Order => {
+  const placeOrder = async (paymentMethod: string, address: UserAddress): Promise<Order | undefined> => {
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
       orderNumber: `SHR${Math.floor(10000 + Math.random() * 90000)}`,
@@ -464,13 +498,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ],
     };
 
-    setOrders((prev) => [newOrder, ...prev]);
     if (db && authUser) { 
-      void addDoc(collection(db, 'users', authUser.uid, 'orders'), { ...newOrder, createdAt: serverTimestamp() }).catch((error) => { 
+      try {
+        await addDoc(collection(db, 'users', authUser.uid, 'orders'), { ...newOrder, createdAt: serverTimestamp() });
+      } catch (error) { 
         console.error('Order save failed:', error); 
         showToast('Order could not be saved to Firebase. Please contact support.', 'error'); 
-      }); 
+        return;
+      } 
     }
+
     clearCart();
     setUserProfile((prev) => ({ ...prev, ordersCount: prev.ordersCount + 1 }));
     setSelectedOrderId(newOrder.id);
@@ -478,7 +515,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return newOrder;
   };
 
-  const cancelOrder = (orderId: string) => {
+  const cancelOrder = async (orderId: string) => {
+    const updatedSteps = [
+      { title: 'Order Cancelled', subtitle: 'Refund will be credited within 24 hours', completed: true, current: true }
+    ];
+
+    if (db && authUser) {
+      try {
+        await updateDoc(doc(db, 'users', authUser.uid, 'orders', orderId), {
+          status: 'Cancelled',
+          deliveryDate: `Cancelled on ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+        });
+      } catch (error) {
+        console.error('Failed to cancel order in Firestore:', error);
+      }
+    }
+
     setOrders((prev) =>
       prev.map((ord) =>
         ord.id === orderId
@@ -486,10 +538,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ...ord,
               status: 'Cancelled',
               deliveryDate: `Cancelled on ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`,
-              trackingSteps: [
-                ...ord.trackingSteps,
-                { title: 'Order Cancelled', subtitle: 'Refund will be credited within 24 hours', completed: true, current: true },
-              ],
+              trackingSteps: [...ord.trackingSteps, ...updatedSteps],
             }
           : ord
       )
@@ -499,63 +548,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const unreadNotificationsCount = notifications.filter((n) => !n.isRead).length;
 
-  const markNotificationRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
+  const markNotificationRead = async (id: string) => {
+    const updated = notifications.map((n) => (n.id === id ? { ...n, isRead: true } : n));
+    setNotifications(updated);
+    if (db && authUser) {
+      await setDoc(doc(db, 'users', authUser.uid), { notifications: updated }, { merge: true }).catch(console.error);
+    }
   };
 
-  const markAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  const markAllNotificationsRead = async () => {
+    const updated = notifications.map((n) => ({ ...n, isRead: true }));
+    setNotifications(updated);
+    if (db && authUser) {
+      await setDoc(doc(db, 'users', authUser.uid), { notifications: updated }, { merge: true }).catch(console.error);
+    }
     showToast('All notifications marked as read', 'info');
   };
 
-  const updateUserProfile = (profile: Partial<UserProfile>) => {
+  const updateUserProfile = async (profile: Partial<UserProfile>) => {
     setUserProfile((prev) => ({ ...prev, ...profile }));
+    if (db && authUser) {
+      await setDoc(doc(db, 'users', authUser.uid), { ...profile, updatedAt: serverTimestamp() }, { merge: true }).catch(console.error);
+    }
     showToast('Profile updated', 'success');
   };
 
-  const addAddress = (addr: Omit<UserAddress, 'id'>) => {
+  const addAddress = async (addr: Omit<UserAddress, 'id'>) => {
     const newAddr: UserAddress = {
       ...addr,
       id: `addr-${Date.now()}`,
     };
-    setAddresses((prev) => [newAddr, ...prev]);
-    setUserProfile((prev) => ({ ...prev, addressesCount: prev.addressesCount + 1 }));
+    const updatedAddresses = [newAddr, ...addresses];
+    setAddresses(updatedAddresses);
+    setUserProfile((prev) => ({ ...prev, addressesCount: updatedAddresses.length }));
+
+    if (db && authUser) {
+      await setDoc(doc(db, 'users', authUser.uid), { addresses: updatedAddresses }, { merge: true }).catch(console.error);
+    }
     showToast('New address saved', 'success');
   };
 
-  const setDefaultAddress = (id: string) => {
-    setAddresses((prev) =>
-      prev.map((addr) => ({ ...addr, isDefault: addr.id === id }))
-    );
+  const setDefaultAddress = async (id: string) => {
+    const updatedAddresses = addresses.map((addr) => ({ ...addr, isDefault: addr.id === id }));
+    setAddresses(updatedAddresses);
+
+    if (db && authUser) {
+      await setDoc(doc(db, 'users', authUser.uid), { addresses: updatedAddresses }, { merge: true }).catch(console.error);
+    }
     showToast('Default address updated', 'info');
   };
 
-  const addRecentSearch = (query: string) => {
-    const clean = query.trim();
+  const addRecentSearch = async (queryStr: string) => {
+    const clean = queryStr.trim();
     if (!clean) return;
-    setRecentSearches((prev) => {
-      const filtered = prev.filter((s) => s.toLowerCase() !== clean.toLowerCase());
-      return [clean, ...filtered].slice(0, 8);
-    });
+    const updated = [clean, ...recentSearches.filter((s) => s.toLowerCase() !== clean.toLowerCase())].slice(0, 8);
+    setRecentSearches(updated);
+
+    if (db && authUser) {
+      await setDoc(doc(db, 'users', authUser.uid), { recentSearches: updated }, { merge: true }).catch(console.error);
+    }
   };
 
-  const clearRecentSearches = () => {
+  const clearRecentSearches = async () => {
     setRecentSearches([]);
+    if (db && authUser) {
+      await setDoc(doc(db, 'users', authUser.uid), { recentSearches: [] }, { merge: true }).catch(console.error);
+    }
     showToast('Recent searches cleared', 'info');
   };
 
-  const toggleDarkMode = () => {
-    setDarkMode((prev) => !prev);
-  };
+  const toggleDarkMode = () => setDarkMode((prev) => !prev);
 
   const toggleNotificationsEnabled = () => {
     setNotificationsEnabled((prev) => !prev);
-    showToast(
-      !notificationsEnabled ? 'Notifications enabled' : 'Notifications muted',
-      'info'
-    );
+    showToast(!notificationsEnabled ? 'Notifications enabled' : 'Notifications muted', 'info');
   };
 
   useEffect(() => {
@@ -563,8 +629,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev,
       wishlistCount: wishlist.length,
       ordersCount: orders.length,
+      addressesCount: addresses.length,
     }));
-  }, [wishlist.length, orders.length]);
+  }, [wishlist.length, orders.length, addresses.length]);
 
   return (
     <AppContext.Provider

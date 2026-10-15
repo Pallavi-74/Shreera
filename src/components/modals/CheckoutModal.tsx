@@ -8,10 +8,7 @@
 //   CreditCard,
 //   Banknote,
 //   QrCode,
-//   Truck,
-//   PackageCheck,
 //   ArrowRight,
-//   Plus,
 // } from 'lucide-react';
 // import { Order } from '../../types';
 
@@ -72,7 +69,7 @@
 //   };
 
 //   return (
-//     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+//     <div className="fixed inset-0 z-[2000] flex items-center justify-center p-3 sm:p-4 pb-20 md:pb-4">
 //       {/* Backdrop */}
 //       <div
 //         className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
@@ -82,7 +79,7 @@
 //       />
 
 //       {/* Modal Dialog */}
-//       <div className="relative bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col">
+//       <div className="relative bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] sm:max-h-[92vh] flex flex-col">
 //         {!isSuccess ? (
 //           <>
 //             {/* Header */}
@@ -145,7 +142,7 @@
 //                           {addr.street}, {addr.locality}
 //                         </p>
 //                         <p className="text-slate-500 text-[11px]">
-//                           {addr.city}, {addr.state} - {addr.pincode} · {addr.phone}
+//                           {addr.city}, {addr.state} {addr.pincode} · {addr.phone}
 //                         </p>
 //                       </div>
 //                     );
@@ -295,8 +292,6 @@
 // };
 
 
-
-
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
@@ -337,16 +332,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
   const [paymentMethod, setPaymentMethod] = useState<string>('Cash on Delivery (COD)');
   const [isSuccess, setIsSuccess] = useState<boolean>(false);
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
   const currentAddress = addresses.find((a) => a.id === selectedAddressId) || addresses[0];
 
-  const handlePlaceOrder = () => {
-    if (!currentAddress) return;
-    const order = placeOrder(paymentMethod, currentAddress);
-    setCreatedOrder(order);
-    setIsSuccess(true);
+  const handlePlaceOrder = async () => {
+    if (!currentAddress || isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      const order = await placeOrder(paymentMethod, currentAddress);
+      if (order) {
+        setCreatedOrder(order);
+        setIsSuccess(true);
+      }
+    } catch (error) {
+      console.error('Failed to place order:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleViewOrder = () => {
@@ -373,7 +379,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       <div
         className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
         onClick={() => {
-          if (!isSuccess) onClose();
+          if (!isSuccess && !isSubmitting) onClose();
         }}
       />
 
@@ -391,7 +397,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
               </div>
               <button
                 onClick={onClose}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-full transition-colors cursor-pointer"
+                disabled={isSubmitting}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 rounded-full transition-colors cursor-pointer disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -530,9 +537,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                 <span className="text-[10px] text-slate-500 block">Total to Pay</span>
                 <span className="text-base font-extrabold text-slate-900 tabular-nums">₹{cartTotal.toLocaleString('en-IN')}</span>
               </div>
-              <button onClick={handlePlaceOrder}
-                className="flex-[2] py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
-              ><span>Confirm & Place Order</span>
+              <button 
+                onClick={handlePlaceOrder}
+                disabled={isSubmitting}
+                className="flex-[2] py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                <span>{isSubmitting ? 'Processing...' : 'Confirm & Place Order'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

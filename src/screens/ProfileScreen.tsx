@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { Header } from '../components/common/Header';
-import { Footer } from '../components/common/Footer';
+// import { Footer } from '../components/common/Footer';
 import { ImageTag } from '../components/common/ImageTag';
 import { Camera, Shield, Package, Heart, MapPin, Sparkles,ChevronRight,
   User, CreditCard, Lock, Bell, Gift, Ticket, HelpCircle, PhoneCall, Info, Truck,
