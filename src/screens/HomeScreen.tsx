@@ -451,20 +451,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Header } from '../components/common/Header';
 import { ImageTag } from '../components/common/ImageTag';
-import { 
-  ArrowRight, 
-  Heart, 
-  Star, 
-  Plus, 
-  Truck, 
-  Banknote, 
-  RotateCcw, 
-  ShieldCheck, 
-  Award, 
-  Headphones, 
-  CheckCircle2, 
-  Sparkles 
-} from 'lucide-react';
+import { ArrowRight, Heart, Star, Plus, Truck, Banknote, RotateCcw, ShieldCheck, Award, Headphones, CheckCircle2, Sparkles } from 'lucide-react';
 import { Product } from '../types';
 
 // Hero slides configuration
@@ -475,7 +462,7 @@ const HERO_SLIDES = [
     title: 'Exquisite Pure Kanjivaram Silks',
     subtitle: 'Drape yourself in timeless elegance with our handcrafted traditional weaves.',
     cta: 'Explore Collection',
-    image: '/src/images/shreera-hero.png',
+    image: '/src/images/hero-rose.png',
     tagline: 'Pure Silk Saree',
   },
   {
@@ -484,7 +471,7 @@ const HERO_SLIDES = [
     title: 'Royal Soft Silk Sarees',
     subtitle: 'Lustrous textures and rich zari borders designed for your special celebrations.',
     cta: 'Shop Festive Edit',
-    image: '/src/images/shreera-hero.png',
+    image: '/src/images/hero-blue.png',
     tagline: 'Soft Silk Saree',
   },
   {
@@ -493,19 +480,19 @@ const HERO_SLIDES = [
     title: 'Contemporary Organza & Tissue',
     subtitle: 'Lightweight drapes with modern floral prints and sparkling pallus.',
     cta: 'Discover Organza',
-    image: '/src/images/shreera-hero.png',
+    image: '/src/images/hero-emerald.png',
     tagline: 'Organza Saree',
   },
 ];
 
 // Categories list configuration
 const CATEGORIES_LIST = [
-  { id: 'all', name: 'All Sarees', image: '/src/images/shreera-hero.png' },
-  { id: 'soft-silk', name: 'Soft Silk', image: '/src/images/shreera-hero.png' },
-  { id: 'kanjivaram', name: 'Kanjivaram', image: '/src/images/shreera-hero.png' },
-  { id: 'organza', name: 'Organza', image: '/src/images/shreera-hero.png' },
-  { id: 'chiffon', name: 'Chiffon', image: '/src/images/shreera-hero.png' },
-  { id: 'sale', name: 'Sale', image: '/src/images/shreera-hero.png', isSale: true },
+  { id: 'all', name: 'All Sarees', image: '/src/images/peach-saree.png' },
+  { id: 'soft-silk', name: 'Soft Silk', image: '/src/images/sea-green-saree.png' },
+  { id: 'kanjivaram', name: 'Kanjivaram', image: '/src/images/royal-blue-saree.png' },
+  { id: 'organza', name: 'Organza', image: '/src/images/peach-saree.png' },
+  { id: 'chiffon', name: 'Chiffon', image: '/src/images/sea-green-saree.png' },
+  { id: 'sale', name: 'Sale', image: '/src/images/royal-blue-saree.png', isSale: true },
 ];
 
 export const HomeScreen: React.FC = () => {
@@ -540,7 +527,7 @@ export const HomeScreen: React.FC = () => {
 
     const timer = setInterval(() => {
       setCurrentSlideIndex((prevIndex) => (prevIndex + 1) % HERO_SLIDES.length);
-    }, 4000); 
+    }, 2000); 
 
     return () => clearInterval(timer);
   }, [isPaused]);
