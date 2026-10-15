@@ -1,0 +1,180 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --color-shreera-blue: #1d4ed8;
+  --color-shreera-dark: #0f172a;
+}
+
+/* Custom scrollbar and utilities */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Mobile navbar: hidden by default */
+.mobile-bottom-nav {
+  display: none;
+}
+
+/* Desktop navbar: visible by default */
+.desktop-bottom-nav {
+  display: block;
+}
+
+/* Mobile screens only */
+@media screen and (max-width: 760px) {
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    z-index: 1000;
+
+    align-items: center;
+    justify-content: space-around;
+
+    height: calc(64px + env(safe-area-inset-bottom));
+    padding: 6px 4px env(safe-area-inset-bottom);
+
+    background: #ffffff;
+    border-top: 1px solid #eeeeee;
+    box-shadow: 0 -3px 14px rgba(0, 0, 0, 0.07);
+    box-sizing: border-box;
+  }
+
+  /* Navbar buttons */
+  .mobile-nav-item {
+    position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+
+    border: none;
+    background: transparent;
+    color: #777777;
+    cursor: pointer;
+    padding: 5px 0;
+    font: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-nav-item.active {
+    color: #8b1e3f;
+  }
+
+  .mobile-nav-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobile-nav-label {
+    font-size: 10px;
+    line-height: 1.2;
+    font-weight: 500;
+  }
+
+  .mobile-nav-item.active .mobile-nav-label {
+    font-weight: 700;
+  }
+
+  .mobile-nav-badge {
+    position: absolute;
+    top: -7px;
+    right: -10px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #8b1e3f;
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 700;
+  }
+
+  .desktop-bottom-nav {
+    display: none;
+  }
+
+  body {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+}
+
+@media screen and (min-width: 768px) {
+  .mobile-bottom-nav {
+    display: none;
+  }
+
+  .desktop-bottom-nav {
+    display: block;
+  }
+}
+
+/* ==========================================
+   Responsive Grid System for Product Lists
+   ================================---------- */
+
+/* Default / Mobile: 2 items per row */
+.image-container {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.image-container img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+/* iPad Mini / Tablet (768px and up): exactly 3 items */
+@media screen and (min-width: 768px) {
+  .image-container {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+/* Laptop / Desktop (1024px and up): exactly 4 items */
+@media screen and (min-width: 1024px) {
+  .image-container {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

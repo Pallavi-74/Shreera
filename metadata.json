@@ -1,0 +1,6 @@
+{
+  "name": "Shreera - Crafted For The Woman You Are",
+  "description": "Premium ethnic wear shopping app featuring sarees, kurtis, lehengas, jewellery, and accessories with seamless cart, orders, wishlist, and profile management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
